@@ -13,14 +13,14 @@ interface ApiKeyDialogProps {
 export const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ onContinue }) => {
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 font-mono">
-      <div className="relative max-w-lg w-full bg-black border-2 border-[#39FF14] shadow-[0_0_20px_rgba(57,255,20,0.3)] p-8">
+      <div className="relative max-w-lg w-full bg-black border-2 border-[#D8B4FE] shadow-[0_0_20px_rgba(216,180,254,0.3)] p-8">
         
-        <h2 className="text-4xl text-[#39FF14] mb-4 uppercase tracking-wide leading-none font-bold">
+        <h2 className="text-4xl text-[#D8B4FE] mb-4 uppercase tracking-wide leading-none font-bold">
           ACCESS DENIED
         </h2>
         
         <p className="text-white mb-6 leading-relaxed">
-          Yo, producer. To run the <span className="text-[#39FF14]">Ghost & C-Cell protocol</span>, you need a paid API Key. The simulation ain't free.
+          Yo, producer. To run the <span className="text-[#D8B4FE]">Ghost & C-Cell protocol</span>, you need a paid API Key. The simulation ain't free.
         </p>
 
         <div className="bg-gray-900 border border-gray-700 p-4 mb-6">
@@ -32,7 +32,7 @@ export const ApiKeyDialog: React.FC<ApiKeyDialogProps> = ({ onContinue }) => {
 
         <button 
           onClick={onContinue}
-          className="w-full bg-[#39FF14] text-black text-xl px-8 py-4 font-bold hover:bg-white transition-colors uppercase"
+          className="w-full bg-[#D8B4FE] text-black text-xl px-8 py-4 font-bold hover:bg-white transition-colors uppercase"
         >
           AUTHENTICATE
         </button>

@@ -7,7 +7,7 @@
 import React, { useState, useRef } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import jsPDF from 'jspdf';
-import { MAX_STORY_PAGES, BACK_COVER_PAGE, TOTAL_PAGES, INITIAL_PAGES, BATCH_SIZE, DECISION_PAGES, CHARACTERS, ComicFace, Beat, Persona } from './types';
+import { MAX_STORY_PAGES, BACK_COVER_PAGE, TOTAL_PAGES, INITIAL_PAGES, BATCH_SIZE, DECISION_PAGES, CHARACTERS, ComicFace, Beat, Persona, StoryTheme } from './types';
 import { Setup } from './Setup';
 import { Book } from './Book';
 import { useApiKey } from './useApiKey';
@@ -15,7 +15,7 @@ import { ApiKeyDialog } from './ApiKeyDialog';
 
 // --- Constants ---
 const MODEL_V3 = "gemini-3-pro-image-preview";
-const MODEL_TEXT_NAME = "gemini-3-pro-preview"; // Use 3 Pro for better creative writing
+const MODEL_TEXT_NAME = "gemini-3-pro-preview"; 
 const MODEL_IMAGE_GEN_NAME = MODEL_V3;
 
 const App: React.FC = () => {
@@ -45,6 +45,7 @@ const App: React.FC = () => {
   const generatingPages = useRef(new Set<number>());
   const historyRef = useRef<ComicFace[]>([]);
   const showContextRef = useRef<string>("EPISODE 1 START. Ghost (Voice Powers) and C-Cell (Hacker) are trying to go viral without getting deleted by the Algorithm.");
+  const currentThemeRef = useRef<StoryTheme | null>(null);
 
   // --- AI Helpers ---
   const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -75,6 +76,7 @@ const App: React.FC = () => {
       - GHOST: 17yo Black girl, rapper/singer. Power: Voice manipulates reality/emotions. Mood: Moody, guarded, pure talent.
       - C-CELL: 17yo tech wizard. Power: Code that hacks physics. Mood: Awkward, genius, chronically online.
       
+      CURRENT EPISODE THEME: "${currentThemeRef.current?.title}" - ${currentThemeRef.current?.desc}
       CURRENT CONTEXT: ${showContextRef.current}
       
       ISSUE #${issueNumber}, PAGE ${pageNum}/${MAX_STORY_PAGES}.
@@ -85,7 +87,7 @@ const App: React.FC = () => {
       - Dialogue: Short, punchy, realistic text-speak energy.
       
       NARRATIVE ARC:
-      ${pageNum === 1 ? "COLD OPEN. Immediate hook. A glitch in reality or a viral scandal starts NOW." : ""}
+      ${pageNum === 1 ? `COLD OPEN. Immediate hook related to the theme: ${currentThemeRef.current?.title}.` : ""}
       ${isDecisionPage && !isFinalPage ? "A critical moral dilemma about CLOUT vs INTEGRITY or SAFETY vs HYPE." : ""}
       ${isFinalPage ? "SEASON FINALE CLIFFHANGER. Must end with 'TO BE CONTINUED...'. Something specifically dangerous happens to C-Cell or Ghost." : ""}
       
@@ -93,7 +95,7 @@ const App: React.FC = () => {
       {
         "caption": "Narrator text (TikTok caption style). Max 15 words.",
         "dialogue": "Character speech. Max 15 words.",
-        "scene": "Visual description for comic artist. ALWAYS mention 'GHOST' or 'C-CELL' by name if present.",
+        "scene": "Visual description for comic artist. ALWAYS mention 'GHOST' or 'C-CELL' by name if present. Keep it purple/neon aesthetic.",
         "focus_char": "hero" (Ghost) or "friend" (C-Cell) or "other",
         "choices": ["Option A", "Option B"] (Only if decision page)
       }
@@ -128,7 +130,7 @@ const App: React.FC = () => {
           const ai = getAI();
           const res = await ai.models.generateContent({
               model: MODEL_IMAGE_GEN_NAME,
-              contents: { text: `STYLE: Modern 2025 graphic novel character sheet, vibrant digital art, cell shaded, high contrast. FULL BODY FRONT VIEW. Character: ${desc}` },
+              contents: { text: `STYLE: Modern 2025 graphic novel character sheet, vibrant digital art, cell shaded, high contrast, purple and neon accents. FULL BODY FRONT VIEW. Character: ${desc}` },
               config: { imageConfig: { aspectRatio: '1:1' } }
           });
           const part = res.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
@@ -151,10 +153,10 @@ const App: React.FC = () => {
         contents.push({ inlineData: { mimeType: 'image/jpeg', data: friendRef.current.base64 } });
     }
 
-    let promptText = `STYLE: Modern 2025 graphic novel, vibrant neon colors, deep blacks, glitch aesthetic. `;
+    let promptText = `STYLE: Modern 2025 graphic novel, vibrant neon colors, heavy use of PURPLE and WHITE lighting, glitch aesthetic. `;
     
     if (type === 'cover') {
-        promptText += `TYPE: Comic Cover. TITLE: "GHOST & C-CELL: VIRAL FREQUENCY" ISSUE #${issueNumber}. Visual: Epic composition of [GHOST] and [C-CELL] facing a digital threat.`;
+        promptText += `TYPE: Comic Cover. TITLE: "GHOST & C-CELL: VIRAL FREQUENCY" ISSUE #${issueNumber}. THEME: ${currentThemeRef.current?.title}. Visual: Epic composition of [GHOST] and [C-CELL] facing a digital threat.`;
     } else if (type === 'back_cover') {
         promptText += `TYPE: Teaser Poster. Text: "NEXT EPISODE LOADING...". Visual: A cracked smartphone screen or a mysterious glitch entity.`;
     } else {
@@ -238,10 +240,11 @@ const App: React.FC = () => {
       }
   }
 
-  const launchEpisode = async () => {
+  const launchEpisode = async (theme: StoryTheme) => {
     const hasKey = await validateApiKey();
     if (!hasKey) return;
     
+    currentThemeRef.current = theme;
     setIsTransitioning(true);
     setLoadingMessage("INITIALIZING GHOST & C-CELL PROTOCOL...");
 
@@ -267,12 +270,12 @@ const App: React.FC = () => {
         }
     }
 
-    setLoadingMessage(`DROPPING ISSUE #${issueNumber}...`);
+    setLoadingMessage(`DROPPING EPISODE: ${theme.title.toUpperCase()}...`);
 
     // 2. Setup Book
     const coverFace: ComicFace = { id: `issue-${issueNumber}-cover`, type: 'cover', choices: [], isLoading: true, pageIndex: 0 };
     setComicFaces([coverFace]);
-    historyRef.current = [coverFace]; // Clear old history visual refs for new book, but we kept context in showContextRef
+    historyRef.current = [coverFace]; 
     generatingPages.current.clear();
     generatingPages.current.add(0);
 
@@ -302,14 +305,14 @@ const App: React.FC = () => {
         .filter(f => f.type === 'story')
         .map(f => f.narrative?.scene).join(" -> ");
       
-      showContextRef.current = `PREVIOUSLY ON GHOST & C-CELL: ${lastSummary}. ISSUE #${issueNumber} ENDED ON CLIFFHANGER. CONTINUE THE STORY.`;
+      showContextRef.current = `PREVIOUSLY: ${lastSummary}. ISSUE #${issueNumber} ENDED ON CLIFFHANGER.`;
       
       setIssueNumber(prev => prev + 1);
       setIsStarted(false);
       setShowSetup(true);
       setComicFaces([]);
       setCurrentSheetIndex(0);
-      // We do NOT clear heroRef/friendRef to keep cast consistent
+      currentThemeRef.current = null;
   };
 
   const downloadPDF = () => {
