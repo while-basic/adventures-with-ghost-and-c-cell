@@ -1,6 +1,6 @@
 {
-  "name": "Infinite Heroes",
-  "description": "Localized and personalized comic book generator",
+  "name": "The Adventures of Ghost & C-Cell",
+  "description": "Personalized procedurally generated comic book generator based off the collaborative work between Ghostmusix and C-Cell.",
   "requestFramePermissions": [],
   "prompt": ""
 }

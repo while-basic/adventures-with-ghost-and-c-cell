@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { STORY_THEMES, StoryTheme } from './types';
+import { SoundEngine } from './SoundEngine';
 
 interface SetupProps {
     show: boolean;
@@ -13,18 +14,22 @@ interface SetupProps {
     loadingMessage: string;
     issueNumber: number;
     onLaunch: (theme: StoryTheme) => void;
+    onReset: () => void;
 }
 
-const Footer = () => {
+const Footer = ({ onReset }: { onReset: () => void }) => {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-black text-white py-2 px-6 flex justify-between items-center z-[300] border-t border-[#D8B4FE] font-mono text-xs md:text-sm">
         <span className="text-[#D8B4FE] animate-pulse">SYSTEM_STATUS: ONLINE</span>
-        <span className="opacity-50">POWERED BY GEMINI 2.0 FLASH</span>
+        <div className="flex gap-4">
+             <button onClick={onReset} className="text-red-400 hover:text-red-200 uppercase text-[10px]">Reset Save</button>
+             <span className="opacity-50">POWERED BY GEMINI 2.0 FLASH</span>
+        </div>
     </div>
   );
 };
 
-export const Setup: React.FC<SetupProps> = ({ show, isTransitioning, loadingMessage, issueNumber, onLaunch }) => {
+export const Setup: React.FC<SetupProps> = ({ show, isTransitioning, loadingMessage, issueNumber, onLaunch, onReset }) => {
     if (!show && !isTransitioning) return null;
 
     return (
@@ -77,6 +82,7 @@ export const Setup: React.FC<SetupProps> = ({ show, isTransitioning, loadingMess
                             {STORY_THEMES.map((theme) => (
                                 <button 
                                     key={theme.id}
+                                    onMouseEnter={() => SoundEngine.playHover()}
                                     onClick={() => onLaunch(theme)}
                                     className="theme-card group relative bg-gray-900 border border-gray-700 p-6 text-left hover:bg-[#1a1025] hover:border-[#D8B4FE] transition-all duration-200"
                                 >
@@ -104,7 +110,7 @@ export const Setup: React.FC<SetupProps> = ({ show, isTransitioning, loadingMess
             </div>
         </div>
 
-        <Footer />
+        <Footer onReset={onReset} />
         </>
     );
 }

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import jsPDF from 'jspdf';
 import { MAX_STORY_PAGES, BACK_COVER_PAGE, TOTAL_PAGES, INITIAL_PAGES, BATCH_SIZE, DECISION_PAGES, CHARACTERS, ComicFace, Beat, Persona, StoryTheme } from './types';
@@ -12,6 +12,8 @@ import { Setup } from './Setup';
 import { Book } from './Book';
 import { useApiKey } from './useApiKey';
 import { ApiKeyDialog } from './ApiKeyDialog';
+import { SoundEngine } from './SoundEngine';
+import { Storage } from './Storage';
 
 // --- Constants ---
 const MODEL_V3 = "gemini-3-pro-image-preview";
@@ -41,11 +43,56 @@ const App: React.FC = () => {
   const [showSetup, setShowSetup] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const generatingPages = useRef(new Set<number>());
   const historyRef = useRef<ComicFace[]>([]);
   const showContextRef = useRef<string>("EPISODE 1 START. Ghost (Voice Powers) and C-Cell (Hacker) are trying to go viral without getting deleted by the Algorithm.");
   const currentThemeRef = useRef<StoryTheme | null>(null);
+
+  // --- Initialization & Storage ---
+  useEffect(() => {
+    const initApp = async () => {
+      const saved = await Storage.loadState();
+      if (saved) {
+          setIssueNumber(saved.issueNumber);
+          setHero(saved.hero);
+          setFriend(saved.friend);
+          // If we loaded from LocalStorage fallback, images might be missing. 
+          // We accept that (better than nothing) and just show the structure.
+          setComicFaces(saved.comicFaces);
+          historyRef.current = saved.history;
+          showContextRef.current = saved.showContext;
+          currentThemeRef.current = saved.currentTheme;
+          
+          if (saved.comicFaces.length > 0) {
+              setIsStarted(true);
+              setShowSetup(false);
+          }
+      }
+      setIsDataLoaded(true);
+    };
+    initApp();
+  }, []);
+
+  // Auto-Save Effect (Debounced for iPhone performance)
+  useEffect(() => {
+      if (!isDataLoaded) return;
+      
+      const saveTimeout = setTimeout(() => {
+          Storage.saveState({
+              issueNumber,
+              hero: heroRef.current,
+              friend: friendRef.current,
+              comicFaces,
+              history: historyRef.current,
+              showContext: showContextRef.current,
+              currentTheme: currentThemeRef.current
+          });
+      }, 1000); // Wait 1 second after last change before saving
+
+      return () => clearTimeout(saveTimeout);
+  }, [issueNumber, comicFaces, isDataLoaded]);
 
   // --- AI Helpers ---
   const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -56,6 +103,7 @@ const App: React.FC = () => {
     if (msg.includes('Requested entity was not found') || msg.includes('API_KEY_INVALID') || msg.toLowerCase().includes('permission denied')) {
       setShowApiKeyDialog(true);
     }
+    SoundEngine.playGlitch();
   };
 
   const generateBeat = async (history: ComicFace[], isRightPage: boolean, pageNum: number, isDecisionPage: boolean): Promise<Beat> => {
@@ -197,10 +245,28 @@ const App: React.FC = () => {
            beat = { scene: "Cover art", choices: [], focus_char: 'other' };
       } else {
            beat = await generateBeat(historyRef.current, pageNum % 2 === 0, pageNum, isDecision);
+
+           // --- Narrative Sound Trigger (Expanded) ---
+           const text = (beat.scene + " " + (beat.caption||"") + " " + (beat.dialogue||"")).toLowerCase();
+           
+           if (text.match(/(punch|hit|crash|slam|boom|fight|attack|break|smash|thud|kick|impact)/)) {
+               SoundEngine.playImpact();
+           } else if (text.match(/(voice|sing|scream|shout|magic|power|glow|float|energy|wave|song|vibe)/)) {
+               SoundEngine.playMagic();
+           } else if (text.match(/(hack|code|type|computer|screen|glitch|data|cyber|download|virus|server|login)/)) {
+               SoundEngine.playCyber();
+           } else if (text.match(/(phone|text|message|viral|notification|ping|alert|trend|live|stream)/)) {
+               SoundEngine.playNotification();
+           } else if (text.match(/(run|drive|car|speed|fast|zoom|chase|fly|flee|escape)/)) {
+               SoundEngine.playSpeed();
+           } else if (text.match(/(dark|shadow|scared|trap|danger|quiet|creep|eerie|threat|die|kill|blood)/)) {
+               SoundEngine.playSuspense();
+           }
       }
 
       updateFaceState(faceId, { narrative: beat, choices: beat.choices, isDecisionPage: isDecision });
       const url = await generateImage(beat, type);
+      if (url) SoundEngine.playGlitch(); // Minimal glitch on successful render
       updateFaceState(faceId, { imageUrl: url, isLoading: false });
   };
 
@@ -241,6 +307,7 @@ const App: React.FC = () => {
   }
 
   const launchEpisode = async (theme: StoryTheme) => {
+    SoundEngine.playBassDrop(); // Init audio context on user gesture
     const hasKey = await validateApiKey();
     if (!hasKey) return;
     
@@ -288,10 +355,12 @@ const App: React.FC = () => {
         setIsTransitioning(false);
         await generateBatch(1, INITIAL_PAGES);
         generateBatch(3, 3);
+        SoundEngine.playSuccess();
     }, 1500);
   };
 
   const handleChoice = async (pageIndex: number, choice: string) => {
+      SoundEngine.playClick();
       updateFaceState(`issue-${issueNumber}-page-${pageIndex}`, { resolvedChoice: choice });
       const maxPage = Math.max(...historyRef.current.map(f => f.pageIndex || 0));
       if (maxPage + 1 <= TOTAL_PAGES) {
@@ -300,6 +369,7 @@ const App: React.FC = () => {
   }
 
   const startNextEpisode = () => {
+      SoundEngine.playBassDrop();
       // Summarize previous context
       const lastSummary = historyRef.current
         .filter(f => f.type === 'story')
@@ -315,7 +385,16 @@ const App: React.FC = () => {
       currentThemeRef.current = null;
   };
 
+  const resetRun = async () => {
+      SoundEngine.playGlitch();
+      if(confirm("DELETE SAVE FILE? THIS WILL ERASE GHOST & C-CELL.")) {
+          await Storage.clearState();
+          window.location.reload();
+      }
+  }
+
   const downloadPDF = () => {
+    SoundEngine.playClick();
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [480, 720] });
     const pagesToPrint = comicFaces.filter(face => face.imageUrl && !face.isLoading).sort((a, b) => (a.pageIndex || 0) - (b.pageIndex || 0));
     pagesToPrint.forEach((face, index) => {
@@ -328,13 +407,22 @@ const App: React.FC = () => {
   const handleSheetClick = (index: number) => {
       if (!isStarted) return;
       if (index === 0 && currentSheetIndex === 0) return;
-      if (index < currentSheetIndex) setCurrentSheetIndex(index);
-      else if (index === currentSheetIndex && comicFaces.find(f => f.pageIndex === index)?.imageUrl) setCurrentSheetIndex(prev => prev + 1);
+      
+      if (index < currentSheetIndex) {
+          setCurrentSheetIndex(index);
+          SoundEngine.playPageFlip();
+      }
+      else if (index === currentSheetIndex && comicFaces.find(f => f.pageIndex === index)?.imageUrl) {
+          setCurrentSheetIndex(prev => prev + 1);
+          SoundEngine.playPageFlip();
+      }
   };
+
+  if (!isDataLoaded) return <div className="bg-black h-screen flex items-center justify-center text-[#D8B4FE] font-mono animate-pulse">BOOTING SEQUENCE...</div>;
 
   return (
     <div className="comic-scene">
-      {showApiKeyDialog && <ApiKeyDialog onContinue={handleApiKeyDialogContinue} />}
+      {showApiKeyDialog && <ApiKeyDialog onContinue={() => { SoundEngine.playClick(); handleApiKeyDialogContinue(); }} />}
       
       <Setup 
           show={showSetup}
@@ -342,6 +430,7 @@ const App: React.FC = () => {
           loadingMessage={loadingMessage}
           issueNumber={issueNumber}
           onLaunch={launchEpisode}
+          onReset={resetRun}
       />
       
       <Book 
@@ -351,7 +440,7 @@ const App: React.FC = () => {
           isSetupVisible={showSetup && !isTransitioning}
           onSheetClick={handleSheetClick}
           onChoice={handleChoice}
-          onOpenBook={() => setCurrentSheetIndex(1)}
+          onOpenBook={() => { SoundEngine.playPageFlip(); setCurrentSheetIndex(1); }}
           onDownload={downloadPDF}
           onReset={startNextEpisode}
       />
